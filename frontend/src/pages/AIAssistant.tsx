@@ -1,4 +1,4 @@
-
+import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import {
   Bot,
@@ -261,35 +261,42 @@ const AIAssistant = () => {
       const historyResponse = await getConversations();
 
       setConversations(historyResponse.conversations || []);
-    } catch (err: any) {
-      console.error("AI question failed:", err);
-
-      // Keep the saved user question if the AI service failed
-      const savedUserMessage = err.response?.data?.userMessage;
-
-      if (savedUserMessage) {
-        setMessages((previous) => [
-          ...previous.filter(
-            (message) => message.id !== temporaryMessage.id
-          ),
-          savedUserMessage,
-        ]);
-      } else {
-        setMessages((previous) =>
-          previous.filter(
-            (message) => message.id !== temporaryMessage.id
-          )
+    } catch (err: unknown) {
+        console.error("AI question failed:", err);
+  
+        const errorData = axios.isAxiosError<{
+          userMessage?: Message;
+          message?: string;
+        }>(err)
+          ? err.response?.data
+          : undefined;
+  
+        // Keep the saved user question if the AI service failed
+        const savedUserMessage = errorData?.userMessage;
+  
+        if (savedUserMessage) {
+          setMessages((previous) => [
+            ...previous.filter(
+              (message) => message.id !== temporaryMessage.id
+            ),
+            savedUserMessage,
+          ]);
+        } else {
+          setMessages((previous) =>
+            previous.filter(
+              (message) => message.id !== temporaryMessage.id
+            )
+          );
+          setQuestion(currentQuestion);
+        }
+  
+        setError(
+          errorData?.message ||
+            "Unable to get an answer. Please try again."
         );
-        setQuestion(currentQuestion);
+      } finally {
+        setAsking(false);
       }
-
-      setError(
-        err.response?.data?.message ||
-          "Unable to get an answer. Please try again."
-      );
-    } finally {
-      setAsking(false);
-    }
   };
 
   return (

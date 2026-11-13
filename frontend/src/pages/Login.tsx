@@ -1,7 +1,12 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { loginUser } from "../services/authService";
+
+interface ApiErrorResponse {
+  message?: string;
+}
 
 function Login() {
   const navigate = useNavigate();
@@ -19,9 +24,13 @@ function Login() {
     try {
       await loginUser(email, password);
       navigate("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorResponse>(err)
+        ? err.response?.data?.message
+        : undefined;
+
       setError(
-        err.response?.data?.message || "Login failed. Check your credentials."
+        errorMessage || "Login failed. Check your credentials."
       );
     } finally {
       setLoading(false);

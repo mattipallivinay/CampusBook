@@ -41,10 +41,12 @@ function Marketplace() {
   const loadListings = async () => {
     try {
       setLoading(true)
+
       const [all, mine] = await Promise.all([
         getAllListings(),
         getMyListings(),
       ])
+
       setListings(all.data)
       setMyListings(mine.data)
     } catch (error) {
@@ -55,7 +57,29 @@ function Marketplace() {
   }
 
   useEffect(() => {
-    void loadListings()
+    let active = true
+
+    Promise.all([getAllListings(), getMyListings()])
+      .then(([all, mine]) => {
+        if (!active) return
+
+        setListings(all.data)
+        setMyListings(mine.data)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          console.error('Failed to load marketplace:', error)
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
   }, [])
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -66,6 +90,7 @@ function Marketplace() {
         ...form,
         price: Number(form.price),
       })
+
       setForm({
         title: '',
         author: '',
@@ -74,8 +99,10 @@ function Marketplace() {
         condition: 'GOOD',
         imageUrl: '',
       })
+
       setShowForm(false)
       setActiveTab('mine')
+
       await loadListings()
     } catch (error) {
       console.error('Failed to create listing:', error)

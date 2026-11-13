@@ -12,7 +12,23 @@ interface Course {
   semester: number | null;
 }
 
+interface Enrollment {
+  courseId: string;
+}
+
+interface ApiResponse<T> {
+  data: T;
+}
+
+interface ApiErrorResponse {
+  message?: string;
+}
+
 const API = "http://localhost:5000/api";
+
+const getHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+});
 
 const CourseCatalog = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -23,35 +39,43 @@ const CourseCatalog = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const getHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  });
-
-  const loadCourses = async () => {
-    try {
-      const [courseResponse, enrollmentResponse] = await Promise.all([
-        axios.get(`${API}/courses`, { headers: getHeaders() }),
-        axios.get(`${API}/enrollments/my-courses`, {
-          headers: getHeaders(),
-        }),
-      ]);
-
-      setCourses(courseResponse.data.data || []);
-      setEnrolledIds(
-        (enrollmentResponse.data.data || []).map(
-          (item: any) => item.courseId
-        )
-      );
-    } catch (err) {
-      console.error("Course loading failed:", err);
-      setError("Unable to load courses. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadCourses();
+    let active = true;
+
+    Promise.all([
+      axios.get<ApiResponse<Course[]>>(`${API}/courses`, {
+        headers: getHeaders(),
+      }),
+      axios.get<ApiResponse<Enrollment[]>>(
+        `${API}/enrollments/my-courses`,
+        { headers: getHeaders() }
+      ),
+    ])
+      .then(([courseResponse, enrollmentResponse]) => {
+        if (!active) return;
+
+        setCourses(courseResponse.data.data ?? []);
+        setEnrolledIds(
+          (enrollmentResponse.data.data ?? []).map(
+            (item) => item.courseId
+          )
+        );
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+
+        console.error("Course loading failed:", err);
+        setError("Unable to load courses. Please try again.");
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleEnroll = async (courseId: string) => {
@@ -68,10 +92,12 @@ const CourseCatalog = () => {
 
       setEnrolledIds((previous) => [...previous, courseId]);
       setMessage("Successfully enrolled in the course!");
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message || "Enrollment failed."
-      );
+    } catch (err: unknown) {
+      const errorMessage = axios.isAxiosError<ApiErrorResponse>(err)
+        ? err.response?.data?.message
+        : undefined;
+
+      setError(errorMessage || "Enrollment failed.");
     } finally {
       setEnrollingId("");
     }

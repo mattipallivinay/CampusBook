@@ -40,6 +40,7 @@ function FacultyResources() {
 
   const [file, setFile] = useState<File | null>(null)
 
+  // Load resources and courses after an upload or refresh.
   const loadData = async () => {
     try {
       setLoading(true)
@@ -59,11 +60,40 @@ function FacultyResources() {
     }
   }
 
+  // Initial data loading with effect cleanup.
   useEffect(() => {
-    void loadData()
+    let active = true
+
+    Promise.all([
+      getFacultyResources(),
+      getFacultyCourses(),
+    ])
+      .then(([resourceResponse, courseResponse]) => {
+        if (!active) return
+
+        setResources(resourceResponse.data || [])
+        setCourses(courseResponse.data || [])
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+
+        console.error('Failed to load faculty resources:', error)
+        setError('Unable to load resources. Please try again.')
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      active = false
+    }
   }, [])
 
-  const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUpload = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault()
 
     if (!file) {
